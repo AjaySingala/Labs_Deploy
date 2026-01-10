@@ -1,0 +1,76 @@
+name: AWS EKS CI-CD
+
+on:
+  push:
+    branches:
+      - main
+
+env:
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+
+jobs:
+  build-and-push:
+    name: Build & Push to ECR
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
+    - name: Login to Amazon ECR
+      run: |
+        aws ecr get-login-password --region $AWS_REGION \
+        | docker login --username AWS --password-stdin $ECR_REGISTRY
+
+    - name: Build Docker Images
+      run: |
+        docker build -t $ECR_REGISTRY/users-service:latest ./users-service
+        docker build -t $ECR_REGISTRY/orders-service:latest ./orders-service
+
+    - name: Push Docker Images
+      run: |
+        docker push $ECR_REGISTRY/users-service:latest
+        docker push $ECR_REGISTRY/orders-service:latest
+
+  deploy:
+    name: Deploy to EKS
+    needs: build-and-push
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Repo
+      uses: actions/checkout@v3
+
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+        aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        aws-region: ${{ secrets.AWS_REGION }}
+
+    - name: Update kubeconfig
+      run: |
+        aws eks update-kubeconfig \
+          --region $AWS_REGION \
+          --name ${{ secrets.EKS_CLUSTER_NAME }}
+
+    - name: Deploy Kubernetes Manifests
+      run: |
+        kubectl apply -f k8s/
+        kubectl rollout status deployment/users-deployment
+        kubectl rollout status deployment/orders-deployment
+
+    - name: Verify
+      run: |
+        kubectl get pods
+        kubectl get deployments
+        kubectl get svc

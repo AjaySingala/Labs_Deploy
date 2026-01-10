@@ -1,0 +1,31 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: users-deployment
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: users
+  template:
+    metadata:
+      labels:
+        app: users
+    spec:
+      containers:
+      - name: users
+        image: 667612002133.dkr.ecr.ap-south-1.amazonaws.com/users-service:latest
+        ports:
+        - containerPort: 8001
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: users-service
+spec:
+  type: LoadBalancer
+  selector:
+    app: users
+  ports:
+    - port: 8001
+      targetPort: 8001
