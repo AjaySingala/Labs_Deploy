@@ -1,0 +1,71 @@
+On Local:
+=========
+docker build -t demoapp:v1 .
+docker run -p 8090:80 demoapp:v1
+
+kubectl apply -f deployment.yaml
+kubectl apply -f service.yaml
+kubectl get deployment
+kubectl get service demo-service
+
+kubectl get deployment
+kubectl get service
+kubectl get rs
+
+kubectl delete service demo-service
+kubectl delete deploy demo-deployment
+# delete replica-set, if any.
+kubectl delete rs <rs-name>
+
+docker container rm $(docker container stop $(docker container ls -aq))
+
+Push Image to Azure Container Registry (ACR)
+============================================
+Login to Azure & create ACR
+az login
+OR
+az login --tenant TENANT_ID
+az account show
+
+az group create --name "myrg" --location "eastus2"
+az group list --output table
+
+az acr create --resource-group myrg --name ajsmyacr123 --sku Basic
+az acr login --name ajsmyacr123
+az acr list --output table
+
+Tag and push:
+docker tag demoapp:v1 ajsmyacr123.azurecr.io/demoapp:v1
+docker push ajsmyacr123.azurecr.io/demoapp:v1
+
+az acr repository list --name ajsmyacr123 --output table
+az acr repository show-tags --name ajsmyacr123 --repository demoapp --output table
+
+Deploy to Azure Kubernetes Service (AKS)
+Create AKS and connect:
+az aks create --resource-group myrg --name ajsmyaks --node-count 1 --generate-ssh-keys
+
+az aks list --output table
+
+az aks get-credentials --resource-group myrg --name ajsmyaks
+
+Allow AKS to pull images from ACR:
+az aks update -n ajsmyaks -g myrg --attach-acr ajsmyacr123
+
+kubectl apply -f az_deployment.yaml
+kubectl apply -f az_service.yaml
+kubectl get service demo-service
+•	Copy the EXTERNAL-IP
+•	Browse to <EXTERNAL-IP>:8090
+
+Cleanup:
+kubectl delete service demo-service
+kubectl delete deploy demo-deployment
+docker container stop <container_id>
+docker container rm <container_id>
+docker image rm <image> --force
+
+# Set k8s cluster back to local.
+kubectl config get-contexts
+kubectl config use-context <local-context-name>
+
